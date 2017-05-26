@@ -1,14 +1,14 @@
 define([
 	'./utils',
-	'jquery',
 	'./obj'
-], function (utils, jquery, obj) {
+], function (utils, obj) {
 	'use strict';
 
 	class Bag
 	{
-		constructor(items={}){
-			this.update(items);
+		constructor(items){
+			if(items)
+				this.update(items);
 		}
 
 		has (key){
@@ -42,9 +42,15 @@ define([
 		}
 
 		update (/* , items... */){
-			var items = Array.apply(null, arguments);
-			items.unshift(true, this);
-			obj.extend.apply(obj, items);
+			var items = [true, this];
+
+			for (var i = 0; i < arguments.length; i++) {
+				if(arguments[i])
+					items.push(arguments[i]);
+			}
+
+			if(items.length > 2)
+				obj.extend.apply(obj, items);
 		}
 
 		merge (/* , items... */){

@@ -1,7 +1,7 @@
 define([
 	'./utils',
-	'jquery'
-], function(utils, jquery) {
+	'jQuery'
+], function(utils, jQuery) {
 	'use strict';
 
 	class Obj
@@ -115,19 +115,23 @@ define([
 		}
 
 		each (object, callback){
-			var keys = this.keys();
+			var keys = this.keys(object);
 			for (var i = 0; i < keys.length; i++) {
-				if(callback(object[keys[i]], keys[i], object) === false)
+				if(callback(keys[i], object[keys[i]], object) === false)
 					break;
 			}
 			return object;
 		}
 
-		copy (object, deep=false){
-			return jquery.extend(deep, {}, object);
+		copy (object, deep=false, target=undefined){
+			target = target === undefined ? {} : target;
+			if(deep)
+				return jQuery.extend(true, target, object);
+			else
+				return jQuery.extend(target, object);
 		}
 
-		extend (){ return jquery.extend.apply(null, arguments);	}
+		extend (){ return jQuery.extend.apply(null, arguments);	}
 
 		keys (object){ return utils.keys(object); }
 

@@ -17,16 +17,16 @@ define([
 	function absolute(url, base){
 		if(!base)
 			base = '/'; //self.config.url;
-		var arg_les = url.split('?')[0];
+
 		if(utils.startsWith(url, 'http') || utils.startsWith(url, '//')){
 			return url;
-		}else if(utils.startsWith(url, '/') && arg_les.length > 1) {
-			return url;
 		}
-		else {
-			return join(base, url);
+		else if(utils.startsWith(url, '/')) {
+			if(url.split('?')[0].length > 1)
+				return url;
 		}
 
+		return join(base, url);
 	}
 
 	mod.join = join;
@@ -189,6 +189,21 @@ define([
 		if(!baseUrl)
 			baseUrl = mod.config.baseUrl;
 		return new Url(baseUrl, rule, params, args);
+	}
+
+	mod.addFactory = addFactory
+	function addFactory(name, config){
+		config = bag(obj.extend(true, {}, mod.config, config || {}));
+		if(name in mod)
+			throw "Error adding url factory '"+name+"'. Name already exists.";
+
+		mod[name] = function(rule, params, args, baseUrl){
+			if(!baseUrl)
+				baseUrl = config.get('baseUrl', '/');
+			return new Url(baseUrl, rule, params, args);
+		}
+
+		return mod[name];
 	}
 
 	return mod;

@@ -1,4 +1,7 @@
 /*global require*/
-require({
-	deps : ['jayace/string']
+define([
+	'./extend-js',
+	'./exceptions'
+], function () {
+
 });

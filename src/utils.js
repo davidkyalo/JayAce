@@ -1,7 +1,7 @@
 define([
-	'jquery',
-	'lodash'
-], function(jquery, lodash) {
+	'jQuery',
+	'lodash',
+], function(jQuery, lodash) {
 	'use strict';
 
 	lodash.paramNames = function(func){
@@ -13,12 +13,13 @@ define([
 
 	lodash.callable = callable;
 	function callable(thing){
-		return (thing instanceof Function);
+		return lodash.isFunction(thing);
+		// return (thing instanceof Function);
 	}
 
 	lodash.copy = copy;
 	function copy(object, deep){
-		return jquery.extend(deep, {}, object);
+		return jQuery.extend(deep, {}, object);
 	}
 
 	lodash.value = value;
@@ -28,24 +29,73 @@ define([
 		return value;
 	}
 
+	lodash.proxy = proxy;
 	function proxy(target, source, options={}){
-		options = jquery.extend(true, {
+		if(target === null)
+			return createProxy(source, options);
+
+		options = jQuery.extend(true, {
 			lazy : true,
 			methods : {},
 			properties : {}
 		}, options);
 
+		var resolve = function(){
+			var instance = options.lazy ? source() : source;
+			return instance;
+		}
+
 		lodash.forEach(options.methods, function(method, name){
 			target[name] = function(){
-				var instance = options.lazy ? source() : source;
+				var instance = resolve();
 				return instance[method].apply(instance, arguments);
 			};
+		});
+
+		lodash.forEach(options.properties, function(key, name){
+			Object.defineProperty(target, name, {
+				get : function(){
+					var instance = resolve();
+					return instance[key];
+				},
+				set : function(value){
+					var instance = resolve();
+					instance[key] = value;
+					return true;
+				},
+				configurable : true,
+				enumerable : true
+			});
 		});
 
 		return target;
 	}
 
-	lodash.proxy = proxy;
+	lodash.createProxy = createProxy;
+	function createProxy(cls, options){
+
+		var source = function(){
+			if(!cls.__proxy_instance__)
+				cls.__proxy_instance__ = new cls();
+			return cls.__proxy_instance__;
+		};
+
+		var target = function(){
+			return source();
+		};
+
+		target[cls.name] = cls;
+
+		return proxy(target, source, options);
+	}
+
+	lodash.slugify = slugify;
+	var reSlug = /[^-a-zA-Z0-9_]+/g;
+	function slugify(value, sep){
+		sep = sep || '-';
+		value = new String(value);
+		return value.trim().replace(reSlug, sep).toLowerCase();
+	}
 
 	return lodash;
 });

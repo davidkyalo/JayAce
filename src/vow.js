@@ -3,7 +3,7 @@ define([
 ], function(){
 	'use strict';
 
-	class Promise
+	class Vow
 	{
 		constructor(resolver){
 			this.resolver = resolver;
@@ -36,7 +36,7 @@ define([
 		_resolve(){
 			this.wasResolved = true;
 			this._state = 'resolved';
-			this._dequeue(this._queues.resolved, this);
+			this._dequeue(this._queues.resolved);
 		}
 
 		_pushResults (results){
@@ -134,6 +134,6 @@ define([
 		}
 	}
 
-	return Promise;
+	return Vow;
 
 });

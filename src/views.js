@@ -1,12 +1,12 @@
 define([
 	'./bag',
 	'./obj',
+	'./urls',
 	'./utils',
 	'./emitter',
-	'./exception',
 	'nunjucks',
-	'jquery',
-], function(bag, obj, utils, Emitter, exception, nunjucks, jquery){
+	'jQuery',
+], function(bag, obj, urls, utils, Emitter, nunjucks, jQuery){
 	'use strict';
 
 	/**
@@ -30,6 +30,43 @@ define([
 	});
 
 /*-End config-*/
+
+	function getTemplateUrl(baseUrl, name){
+		var url = urls.join(baseUrl, name);
+		if(!utils.endsWith(url, '.html'))
+			url += '.html';
+		return url;
+	}
+
+	var WebLoader = nunjucks.WebLoader.extend({
+		getSource: function(name, cb) {
+			var useCache = this.useCache;
+			var result;
+			this.fetch(getTemplateUrl(this.baseURL, name), function(err, src) {
+				if(err) {
+					if(cb) {
+						cb(err.content);
+					} else {
+						if (err.status === 404) {
+							result = null;
+						} else {
+							throw err.content;
+						}
+					}
+				}
+				else {
+					result = { src: src,
+						path: name,
+						noCache: !useCache };
+						if(cb) {
+							cb(null, result);
+						}
+				}
+			});
+			return result;
+		},
+
+	});
 
 	/**
 	 * Engine The view rendering engine.
@@ -72,7 +109,8 @@ define([
 				);
 
 			var baseUrl = obj.pull(opts, 'baseUrl', '/templates');
-			return new nunjucks.WebLoader(baseUrl, opts);
+			// return new nunjucks.WebLoader(baseUrl, opts);
+			return new WebLoader(baseUrl, opts);
 		}
 	}
 
@@ -100,7 +138,17 @@ define([
 	}
 
 /*-End ViewCounter-*/
+	class DuplicateViewError extends KeyError
+	{
+		constructor (name, message, fileName, lineNumber){
+			super('<'+name+'> '+(message || ""), fileName, lineNumber);
+		}
+	}
 
+	class DuplicateViewAliasError extends DuplicateViewError
+	{
+		//
+	}
 
 	/**
 	 * ViewRegistry Provides a public registry for view classes
@@ -118,7 +166,7 @@ define([
 			var name = cls.name;
 			var current = this.get(name);
 			if(current && current !== cls)
-				throw exception("Cannot redefine view "+name+".", 'DuplicateViewError');
+				throw new DuplicateViewError(name);
 			if(!current){
 				this[name] = cls;
 				cls.alias = name;
@@ -131,7 +179,7 @@ define([
 		alias (cls, alias){
 			var current = this.get(alias);
 			if(current && current !== cls)
-				throw exception("Cannot redefine view alias "+alias+".", 'DuplicateViewError');
+				throw new DuplicateViewAliasError(alias);
 
 			if(!current){
 				this[alias] = cls;
@@ -141,7 +189,7 @@ define([
 
 		getAlias (cls, fromInstance=false){
 			if(fromInstance)
-				cls = cls.__proto__.constructor;
+				cls = cls.__class__;
 			return cls.alias ? cls.alias : cls.name;
 		}
 
@@ -164,47 +212,90 @@ define([
 	 */
 	class View
 	{
-		constructor (template=null, container=null)
+		constructor (template=null, container_selector=null)
 		{
 			this._name = registry.getAlias(this, true);
 			this._id = registry.genId(this, true);
-			this.engine = view.engine;
+			this.engine = views.engine;
 			this.template = template;
 			this.append = false;
 			this.prepend = false;
-			this.container = container;
+			this.container_selector = container_selector;
 			this.renderCount = 0;
 			this.static = {};
+			this._state = null;
 			this._domEvents = [];
 			this._dirty = [];
-			this.resetState();
-			this._registerBaseEvents();
+			this.parentView = null;
+			this.childViews = [];
+			this._context = null;
+			this._baseEvents();
 			this.events();
 		}
 
-		el (jQueryObject=false, target=""){
-			target = target.length > 0 ? " "+target : target;
-			var selector = this._name + '.'+this._id + target;
-			return jQueryObject ? jquery(selector) : selector;
+		get container (){
+			return jQuery(this.container_selector);
+		}
+
+		get state (){
+			if(!this._state)
+				this.resetState();
+			return this._state;
+		}
+
+		get context (){
+			return this._getTemplateContext();
+			// if(!this._context)
+			// 	this._context = this._getTemplateContext();
+			// return this._context;
+		}
+
+		get parent (){
+			if(!this.parentView)
+				return null;
+			return this.parentView.context;
+		}
+
+		el (jqueryObject=false, target=""){
+			throw new DepreciatedError(this.el, this.element, this);
+
+			var selector = this.selector(target);
+			return jqueryObject ? jQuery(selector) : selector;
+		}
+
+		element (target){
+			return jQuery(this.selector(target));
+		}
+
+		selector (target) {
+			var selector = this._name +'.'+this._id;
+			return target ? selector+' '+target : selector;
 		}
 
 		setEngine (engine){ this.engine = engine}
 
 		initialState (){ return {}; }
 
-		inDom (){ return this.el(true).length > 0; }
+		inDom (){ return this.element().length > 0; }
 
-		isDirty (){ throw exception("Method isDirty", 'NotImplementedError'); }
+		isDirty (){ throw new NotImplementedError(this.isDirty, this); }
 
 		updateState (state){ this.state.update(state); }
 
-		resetState (){ this.state = bag(this.initialState()); }
+		resetState (){ this._state = bag(this.initialState()); }
 
-		on (events, target, callback){
-			if(callback === undefined && utils.callable(target))
-				this.listen(events, target);
+		resetContextData (){ this._context = null; }
+
+		on (events, target, callback, once){
+			if(!utils.callable(callback) && utils.callable(target))
+				this.listen(events, target, callback);
 			else
 				this._addDomEvent(events, target, callback);
+		}
+
+		with (view, extendContext=true, container_selector=null){
+			view._setParentView(this, extendContext, container_selector);
+			this.childViews.push(view);
 		}
 
 		render (){
@@ -212,13 +303,16 @@ define([
 		}
 
 		destroy (resetState){
-			this.trigger('destroying', resetState);
+			this.trigger('destroying', this, resetState);
 			this._removeDomNodes();
 
 			if(resetState)
 				this.resetState();
 
-			this.trigger('destroy', resetState);
+			this.resetContextData();
+			this._destroyChildViews(resetState);
+
+			this.trigger('destroy', this, resetState);
 		}
 
 		events (){}
@@ -228,62 +322,87 @@ define([
 				events : events,
 				selector : selector,
 				callback : callback,
-				isBound : false
+				isBound : false,
+
 			};
 			this._domEvents.push(listener);
 		}
 
 		_render (){
-			this.trigger('rendering');
-			if(this.inDom())
+			this.trigger('rendering', this);
+			if(this.inDom()){
 				this._updateDomNodes(this._compileTemplate());
-			else
+			}
+			else{
 				this._createDomNodes(this._compileTemplate());
+			}
+
+			this._renderChildViews();
 			this.renderCount += 1;
-			this.trigger('render');
+			this.trigger('render', this);
 		}
 
 		_compileTemplate (){
-			return this.engine.render(this.template, this._getTemplateVars());
+			return this.engine.render(this.template, this.context);
 		}
 
-		_getTemplateVars (){
-			return obj.extend( true, {'this' : this}, this.static, this.state);
+		_getTemplateContext (){
+			return obj.extend({self : this}, this.static, this.state);
+		}
+
+		_wrapMarkupWithSelfTag (markup){
+			return '<'+this._name+' class="'+this._id+'">'
+						+markup+'</'+this._name+'>';
 		}
 
 		_createDomNodes (markup){
 			this._removeDomNodes();
-			markup = '<'+this._name+' class="'+this._id+'">'
-						+markup+'</'+this._name+'>';
-			var self = this;
-			jquery(this.container).each(function(){
-				if(self.append)
-					jquery(this).append(markup);
-				else if(self.prepend)
-					jquery(this).prepend(markup);
-				else
-					jquery(this).html(markup);
-			});
+			markup = this._wrapMarkupWithSelfTag(markup);
+			if(this.append)
+				this.container.append(markup);
+			else if(this.prepend)
+				this.container.prepend(markup);
+			else
+				this.container.html(markup);
 		}
 
 		_updateDomNodes (markup){
-			this.el(true).html(markup);
+			this.element().html(markup);
 		}
 
 		_removeDomNodes (){
-			this.el(true).remove();
+			this.element().remove();
 		}
 
-		_registerBaseEvents (){
+		_renderChildViews (){
+			for (var i = 0; i < this.childViews.length; i++) {
+				this.childViews[i].render();
+			}
+		}
+
+		_destroyChildViews (resetState) {
+			for (var i = 0; i < this.childViews.length; i++) {
+				this.childViews[i].destroy(resetState);
+			}
+		}
+
+		_setParentView (view, extendContext, container_selector) {
+			this.parentView = view;
+			if(!this.container_selector)
+				container_selector = container_selector || '[child-view="'+this._name+'"]';
+				this.container_selector = view.selector(container_selector);
+		}
+
+		_baseEvents (){
 			var self = this;
 			this.listen('render', function(){
 				utils.forEach(self._domEvents, function(listener){
 					if(listener.isBound)
 						return;
 
-					jquery(document).on(
+					jQuery(document).on(
 						listener.events,
-						self.el(false, listener.selector),
+						self.selector(listener.selector),
 						listener.callback);
 
 					listener.isBound = true;
@@ -318,30 +437,29 @@ define([
 		return _engine;
 	}
 
-	/**
-	 * Create a view instance.
-	 * Also the module's export.
-	 *
-	 * @return {View}
-	 */
-	function view(name/*, args */){
+	var views = {};
+
+	views.config = config;
+	views.View = View;
+	views.Engine = Engine;
+	views.ViewRegistry = ViewRegistry;
+	views.ViewCounter = ViewCounter;
+
+	views.view = function(name/*, args */){
 		var cls = registry.get(name);
 		if(!cls)
-			throw exception("View "+cls+" doesn't exist in registry.", "ViewNameError");
+			throw new KeyError("View "+cls+" doesn't exist in registry.", "ViewNameError");
 
 		var args = Array.prototype.slice.call(arguments, 1);
 		args.unshift(cls);
 		return new (cls.bind.apply(cls, args));
 	}
 
-	view.View = View;
-	view.Engine = Engine;
-	view.engine = function(config={}){
+	views.engine = function(config={}){
 		return new Engine(config);
 	}
-	view.ViewRegistry = ViewRegistry;
-	view.ViewCounter = ViewCounter;
-	view._registry = registry;
+
+	views._registry = registry;
 
 	var engineProxyOpts = {
 		lazy : true,
@@ -351,9 +469,9 @@ define([
 		}
 	};
 
-	utils.proxy(view, getEngine, engineProxyOpts);
-	utils.proxy(view.engine, getEngine, engineProxyOpts);
+	utils.proxy(views, getEngine, engineProxyOpts);
+	utils.proxy(views.engine, getEngine, engineProxyOpts);
 
-	return view;
+	return views;
 
 });

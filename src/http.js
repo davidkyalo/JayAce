@@ -20,9 +20,9 @@ define([
 	'./obj',
 	'./utils',
 	'./urls',
-	'./promise',
-	'jquery'
-], function(bag, obj, utils, urls, Promise, jquery){
+	'./vow',
+	'jQuery'
+], function(bag, obj, utils, urls, Vow, jQuery){
 	'use strict';
 
 /***Global http config***/
@@ -97,7 +97,7 @@ define([
 	class Request
 	{
 		constructor(options = {}, config={}, responseConfig={}){
-			this.promise = new Promise();
+			this.promise = new Vow();
 			this._isPrepared = false;
 			this.wasAborted = false;
 			this.config = bag(config);
@@ -181,14 +181,14 @@ define([
 			this.prepare();
 
 			if(!this.wasAborted)
-				jquery.ajax(this.options);
+				jQuery.ajax(this.options);
 
 			return this;
 		}
 
 		abort (){
 			this.prepare();
-			jquery.ajax(this.options).abort();
+			jQuery.ajax(this.options).abort();
 			this.wasAborted = true;
 			return this;
 		}
@@ -307,8 +307,8 @@ define([
 
 		requestOptions (options, method){
 			options = obj.extend(true, {}, this.config.request, options || {});
-			if('data' in options)
-				options.data = this.prepareRequestData(options.data, method);
+			// if('data' in options)
+			// 	options.data = this.prepareRequestData(options.data, method);
 			return options;
 		}
 
@@ -324,7 +324,7 @@ define([
 		}
 
 		promise (){
-			var promise = new Promise();
+			var promise = new Vow();
 			promise.error = function(callback){
 				return promise.broken(function(status, data, response){
 					if(status === 'error')
@@ -352,8 +352,9 @@ define([
 			return promise;
 		}
 
-		all (options){
-			var url = this.getUrl(undefined, obj.pull(options, 'args'));
+		all (options, urlparams, urlargs){
+			urlargs = urlargs || obj.pull(options, 'args');
+			var url = this.getUrl(urlparams, urlargs);
 			var promise = this.promise();
 
 			this.http.get(url, this.requestOptions(options, 'all'))
@@ -557,7 +558,7 @@ define([
 			var singularName = this.config.displayName.singular;
 			var pluralName = this.config.displayName.plural;
 			if(typeof(message) === 'object'){
-				messages = [];
+				var messages = [];
 				utils.forEach(message, function(m){
 					messages.push(m.replace('[displayName.plural]', pluralName)
 						.replace('[displayName.singular]', singularName));
@@ -592,6 +593,28 @@ define([
 		}
 	}
 
+	Resource.createProxy = function(options){
+		options = obj.extend(true, {
+			lazy : true,
+			methods : {
+				all : 'all',
+				get : 'get',
+				post : 'post',
+				put : 'put',
+				delete : 'delete',
+				create : 'create',
+				update : 'update',
+				save : 'save',
+			},
+			properties : {
+				config : 'config',
+				http : 'http'
+			}
+		}, options || {});
+
+		return utils.createProxy(this, options);
+	}
+
 /***Resource helper function***/
 	function resource(config={}){
 		return new Resource(config);
@@ -618,7 +641,7 @@ define([
 		return _http;
 	}
 
-	utils.proxy(http, getHttp, {
+	return utils.proxy(http, getHttp, {
 		lazy : true,
 		methods : {
 			'request'   : 'request',
@@ -630,5 +653,4 @@ define([
 		}
 	});
 
-	return http;
 });
