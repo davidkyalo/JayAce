@@ -1,6 +1,6 @@
 define([
 	'./utils',
-	'jQuery',
+	'jquery',
 	'./obj',
 	'./bag',
 ], function (utils, jQuery, obj, bag){
@@ -35,9 +35,10 @@ define([
 			var parts = this.inputSelector.split(',');
 			for (var i = 0; i < parts.length; i++) {
 				selector += selector == ''
-						? parts[i] + ' ' + target
-						: ', '+ parts[i] + ' ' + target;
+						? parts[i].trim() + target
+						: ', '+ parts[i].trim() + target;
 			}
+			// return this.element().find(selector);
 			return this.element().find(selector);
 		}
 
@@ -48,6 +49,19 @@ define([
 
 		updateInputs(){
 			this.setInputValues(this.inputs(), this.data);
+		}
+
+		reset (){
+			this.resetData();
+			this.resetInputs();
+		}
+
+		resetData (){
+			this.data = bag(this.defaults);
+		}
+
+		resetInputs (){
+			this.setInputValues(this.inputs(), this.defaults)
 		}
 
 		getInputValues (inputs, defa) {
@@ -96,19 +110,23 @@ define([
 		}
 
 		focus (name=null){
-			if( name != null ){
-				var input = jQuery(this.selector +' input[name='+ name +'], '
-						+ this.selector +' select[name='+ name +'], '
-						+ this.selector +' textarea[name='+ name +']');
-			}else{
-				var inputs = this.inputs();
-				for (var i = 0; i < inputs.length; i++) {
-					var input = jQuery(inputs[i]);
-					if(input.attr('type') !== 'hidden')
-						break;
-				}
-			}
-			input.focus();
+			var inputs = this.inputs(name ? `[name="${name}"]` : ':not([type="hidden"])');
+			if(inputs.length > 0)
+				inputs[0].focus();
+
+			// if(name){
+			// 	// var input = jQuery(this.selector +' input[name='+ name +'], '
+			// 	// 		+ this.selector +' select[name='+ name +'], '
+			// 	// 		+ this.selector +' textarea[name='+ name +']');
+			// }else{
+			// 	var inputs = this.inputs().not('input[type="hidden"]');
+			// 	for (var i = 0; i < inputs.length; i++) {
+			// 		var input = jQuery(inputs[i]);
+			// 		if(input.attr('type') !== 'hidden')
+			// 			break;
+			// 	}
+			// }
+			// input.focus();
 		}
 
 	}

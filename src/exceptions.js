@@ -1,7 +1,10 @@
 define([
-	'./extend-js',
-], function () {
+	'./obj',
+], function (obj) {
 	'use strict';
+
+    var	exc = {};
+	var global = global || (window || {});
 
 	function notImplementedErrorMessage (func, cls, message){
 		var name = typeof(func) == 'function' ? func.name+'()' : func;
@@ -65,21 +68,21 @@ define([
 			super(notImplementedErrorMessage(func, cls, message), fileName, lineNumber);
 		}
 	}
-	window.NotImplementedError = NotImplementedError;
+	exc.NotImplementedError = global.NotImplementedError = NotImplementedError;
 
 
 	class KeyError extends Exception
 	{
 		//
 	}
-	window.KeyError = KeyError;
+	exc.KeyError = global.KeyError = KeyError;
 
 
 	class ValueError extends Exception
 	{
 		//
 	}
-	window.ValueError = ValueError;
+	exc.ValueError = global.ValueError = ValueError;
 
 	class BadMethodCallError extends Exception
 	{
@@ -87,7 +90,7 @@ define([
 			super(badMethodCallErrorMessage(method, cls, message), fileName, lineNumber);
 		}
 	}
-	window.BadMethodCallError = BadMethodCallError;
+	exc.BadMethodCallError = global.BadMethodCallError = BadMethodCallError;
 
 
 	class DepreciatedError extends Exception
@@ -96,7 +99,7 @@ define([
 			super(depreciatedErrorMessage(func, alt, cls, message), fileName, lineNumber);
 		}
 	}
-	window.DepreciatedError = DepreciatedError;
+	exc.DepreciatedError = global.DepreciatedError = DepreciatedError;
 
 
 	function depreciated(func, alt, cls, message, fileName, lineNumber){
@@ -106,6 +109,10 @@ define([
 			var e = new DepreciatedError(func, alt, cls, message, fileName, lineNumber);
 		console.warn(e.name+': '+e.message);
 	}
-	window.depreciated = depreciated;
+	exc.depreciated = global.depreciated = depreciated;
+
+	
+
+	return exc;
 
 });

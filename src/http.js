@@ -21,7 +21,7 @@ define([
 	'./utils',
 	'./urls',
 	'./vow',
-	'jQuery'
+	'jquery'
 ], function(bag, obj, utils, urls, Vow, jQuery){
 	'use strict';
 
@@ -287,7 +287,7 @@ define([
 						single : null,
 						collection : null,
 					},
-					request : 'data',
+					request : null //'data',
 				},
 				request : {
 					dataType : 'json',
@@ -298,6 +298,7 @@ define([
 					get : ["Error fetching [displayName.singular] from the server.", "Please reload the page and try again."],
 					post : ["Error creating [displayName.singular].", "Please reload the page and try again."],
 					put :["Error updating [displayName.singular].", "Please reload the page and try again."],
+					patch :["Error updating [displayName.singular].", "Please reload the page and try again."],
 					delete : ["Error deleting [displayName.singular]."," Please reload the page and try again."],
 				},
 				http : {}
@@ -307,14 +308,23 @@ define([
 
 		requestOptions (options, method){
 			options = obj.extend(true, {}, this.config.request, options || {});
-			// if('data' in options)
-			// 	options.data = this.prepareRequestData(options.data, method);
+			if('data' in options)
+				options.data = this.prepareRequestData(options.data, method);
 			return options;
 		}
 
-		getUrl (params, args){
-			if(this.config.url instanceof urls.Url){
-				var url = this.config.url.copy();
+		getUrl (key, params, args){
+			let url = this.config.url;
+			if(key instanceof String){
+				if(this.config.urls)
+					url = this.config.urls[key];
+			}
+			else{
+				args = params;
+				params = key;
+			}
+			if(url instanceof urls.Url){
+				url = url.copy();
 				url.params.update(params || {});
 				url.args.update(args || {});
 				return url;
@@ -352,12 +362,13 @@ define([
 			return promise;
 		}
 
-		all (options, urlparams, urlargs){
-			urlargs = urlargs || obj.pull(options, 'args');
-			var url = this.getUrl(urlparams, urlargs);
-			var promise = this.promise();
+		fetchResults (url, verb, options) {
+			if(options && options.args)
+				url.args.update(obj.pull(options, 'args'));
 
-			this.http.get(url, this.requestOptions(options, 'all'))
+			var promise = this.promise();
+			verb = verb.toUpperCase();
+			this.http.request(url, verb, null, this.requestOptions(options, ( verb == 'GET' ? 'all' : verb.toLowerCase() )))
 				.success(function(data, response){
 					data = this.prepareResponseData(data, response, 'all', true);
 					if(data.status === 'success'){
@@ -372,6 +383,60 @@ define([
 					return this.ajaxError(response, promise, 'all');
 				}.bind(this));
 			return promise;
+		}
+
+		fetchResult (url, verb, options) {
+			if(options && options.args)
+				url.args.update(obj.pull(options, 'args'));
+
+			var promise = this.promise();
+			var act = verb.toLowerCase();
+
+			this.http.request(url, verb.toUpperCase(), null, this.requestOptions(options, act))
+				.success(function(data, response){
+					data = this.prepareResponseData(data, response, act, false);
+					if(data.status === 'success'){
+						data.data = this.parseSingleEntityResponse(data.data);
+						return promise.fulfil(data.data, data, response);
+					}
+					else{
+						return promise.reject(data.status, data, response);
+					}
+				}.bind(this))
+				.error(function(response){
+					return this.ajaxError(response, promise, act);
+				}.bind(this));
+			return promise;
+		}
+
+		sendData (url, verb, data, options){
+			options = options || {};
+			if(data)
+				options.data = data;
+			return this.fetchResult(url, verb, options);
+		}
+
+		all (options, urlparams, urlargs){
+			// urlargs = urlargs || obj.pull(options, 'args');
+			var url = this.getUrl(urlparams, urlargs);
+			return this.fetchResults(url, 'GET', options);
+			// var promise = this.promise();
+
+			// this.http.get(url, this.requestOptions(options, 'all'))
+			// 	.success(function(data, response){
+			// 		data = this.prepareResponseData(data, response, 'all', true);
+			// 		if(data.status === 'success'){
+			// 			data.data = this.parseCollectionResponse(data.data);
+			// 			return promise.fulfil(data.data, data, response);
+			// 		}
+			// 		else{
+			// 			return promise.reject(data.status, data, response);
+			// 		}
+			// 	}.bind(this))
+			// 	.error(function(response){
+			// 		return this.ajaxError(response, promise, 'all');
+			// 	}.bind(this));
+			// return promise;
 		}
 
 		get (pk, options){
@@ -487,9 +552,9 @@ define([
 			var result = {};
 
 			if(method == 'all' || method == 'get' || method == 'delete'){
-				if(envelope)
-					result[envelope] = JSON.stringify(data);
-				else
+				// if(envelope)
+				// 	result[envelope] = JSON.stringify(data);
+				// else
 					result = data;
 			}
 			else{
@@ -529,9 +594,10 @@ define([
 
 		ajaxError (response, promise, action){
 			return promise.reject(
-							'error',
-							this.getAjaxErrorData(response, action),
-							response);
+					'error',
+					this.getAjaxErrorData(response, action),
+					response
+				);
 		}
 
 		getAjaxErrorData (response, action){
@@ -545,6 +611,7 @@ define([
 			};
 
 			data.data = response.data;
+			response.data = data;
 
 			return data;
 		}

@@ -1,8 +1,11 @@
 define([
-	'./obj'
-], function(obj) {
+	'./obj',
+	'./bag',
+], function(obj, bag) {
 	'use strict';
-
+	/**
+	 * TODO: Change the way listeners are set on the object.
+	 */
 	class Emitter
 	{
 		listen (event, callback, once){
@@ -10,7 +13,7 @@ define([
 				for (var i = 0; i < event.length; i++) {
 					this.listen(event[i], callback, once);
 				}
-				return true;
+				return this;
 			}
 
 			this._events = this._events || { once : {}, always : {} };
@@ -23,7 +26,7 @@ define([
 				this._events.always[event].push(callback);
 			}
 
-			return true;
+			return this;
 		}
 
 		listenOnce (event, callback) {
@@ -58,32 +61,32 @@ define([
 
 		trigger	(event /* , args... */){
 			if(!this._events || !( (event in this._events.always) || (event in this._events.once) ))
-				return;
+				return this;
 
 			var args = Array.prototype.slice.call(arguments, 1);
-			var context = this.__class__.__bindSenderToEmittedEvents__ ? this : undefined;
+
 			if((event in this._events.once)){
 				while (this._events.once[event].length > 0){
-					this._events.once[event].shift().apply(context, args);
+					this._events.once[event].shift().apply(null, args);
 				}
 			}
 			if((event in this._events.always)){
-				for(var i = 0; i < this._events.always[event].length; i++){
-					this._events.always[event][i].apply(context, args);
+				for(let i = 0; i < this._events.always[event].length; i++){
+					this._events.always[event][i].apply(null, args);
 				}
 			}
+
+			return this;
 		}
 	}
 
-	Emitter.__bindSenderToEmittedEvents__ = false;
-
 	Emitter.mixin = function(target, methods, newThis){
-		var methods = obj.extend({
+		var methods = bag(obj.extend({
 			listen : 'listen',
 			listenOnce : 'listenOnce',
 			removeListener : 'removeListener',
 			trigger : 'trigger',
-		}, methods || {});
+		}, methods || {}));
 
 		newThis = newThis === undefined ? target : newThis;
 
@@ -92,11 +95,12 @@ define([
 			if(!name) continue;
 
 			if(typeof target === 'function')
-				target.prototype[name] = Emitter.prototype[key];
+				if(!(name in target.prototype))
+					target.prototype[name] = Emitter.prototype[key];
 			else
-				target[name] = Emitter.prototype[key].bind(newThis);
+				if(!(name in target))
+					target[name] = Emitter.prototype[key].bind(newThis);
 		}
-
 		return target;
 	}
 

@@ -4,7 +4,8 @@ define([
 	'./vow',
 	'./utils',
 	'./emitter',
-], function(bag, obj, Vow, utils, Emitter) {
+	'jquery',
+], function(bag, obj, Vow, utils, Emitter, jQuery) {
 	'use strict';
 
 	function getElementEventData(element, event)

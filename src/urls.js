@@ -64,7 +64,7 @@ define([
 			matchedParams.push(matches);
 
 		utils.forEach(matchedParams, function(match){
-			if(match[3] in params){
+			if((match[3] in params) && params[match[3]] !== undefined){
 				url = url.replace(match[1], match[2]+params[match[3]]+match[4]);
 			}
 			else{
@@ -89,11 +89,18 @@ define([
 
 		var argStr = '';
 		utils.forEach(args, function(value, arg){
-			value = encode(value);
 			arg = encode(arg);
-			argStr += argStr == ''
-					? '?'+arg+'='+value
-					: '&'+arg+'='+value;
+			if(value instanceof Array){
+				value.forEach(function(v, i){
+					v = encode(v)
+					argStr += argStr == '' ? `?${arg}[]=${v}` : `&${arg}[]=${v}`;
+				});
+			}
+			else{
+				value = encode(value);			
+				argStr += argStr == '' ? '?'+arg+'='+value : '&'+arg+'='+value;
+			}
+			
 		});
 		return url + argStr;
 	}

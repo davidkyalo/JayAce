@@ -4,11 +4,11 @@ define([
 	'./urls',
 	'./utils',
 	'./emitter',
+	'./exceptions',
 	'nunjucks',
-	'jQuery',
-], function(bag, obj, urls, utils, Emitter, nunjucks, jQuery){
+	'jquery',
+], function(bag, obj, urls, utils, Emitter, exceptions, nunjucks, jQuery){
 	'use strict';
-
 	/**
 	 * Global views config.
 	 *
@@ -22,7 +22,8 @@ define([
 			trimBlocks : false,
 			lstripBlocks : false
 		},
-		webLoader : {
+		loader : {
+			webloader : false,
 			baseUrl : '/templates',
 			useCache : false,
 			async : false
@@ -38,36 +39,76 @@ define([
 		return url;
 	}
 
-	var WebLoader = nunjucks.WebLoader.extend({
-		getSource: function(name, cb) {
-			var useCache = this.useCache;
-			var result;
-			this.fetch(getTemplateUrl(this.baseURL, name), function(err, src) {
-				if(err) {
-					if(cb) {
-						cb(err.content);
-					} else {
-						if (err.status === 404) {
-							result = null;
+
+	function makeWebLoader(){
+		return nunjucks.WebLoader.extend({
+			getSource: function(name, cb) {
+				var useCache = this.useCache;
+				var result;
+				this.fetch(getTemplateUrl(this.baseURL, name), function(err, src) {
+					if(err) {
+						if(cb) {
+							cb(err.content);
 						} else {
-							throw err.content;
+							if (err.status === 404) {
+								result = null;
+							} else {
+								throw err.content;
+							}
 						}
 					}
-				}
-				else {
-					result = { src: src,
-						path: name,
-						noCache: !useCache };
-						if(cb) {
-							cb(null, result);
-						}
-				}
-			});
-			return result;
-		},
+					else {
+						result = { src: src,
+							path: name,
+							noCache: !useCache };
+							if(cb) {
+								cb(null, result);
+							}
+					}
+				});
+				return result;
+			},
 
-	});
+		});
+	}
 
+	function makeFileSystemLoader(){
+		var path = require('path');
+		var fs = require('fs');
+		return nunjucks.FileSystemLoader.extend({
+			getSource: function(name) {
+				if(path.extname(name) !== '.html')
+					name += '.html';
+
+				var fullpath = null;
+				var paths = this.searchPaths;
+
+				for(var i=0; i<paths.length; i++) {
+					var basePath = path.resolve(paths[i]);
+					var p = path.resolve(paths[i], name);
+
+					// Only allow the current directory and anything
+					// underneath it to be searched
+					if(p.indexOf(basePath) === 0 && fs.existsSync(p)) {
+						fullpath = p;
+						break;
+					}
+				}
+
+				if(!fullpath) {
+					return null;
+				}
+
+				this.pathsToNames[fullpath] = name;
+
+				return { src: fs.readFileSync(fullpath, 'utf-8'),
+						path: fullpath,
+						noCache: this.noCache };
+			}
+
+		});
+	}
+	var FileSystemLoader = makeFileSystemLoader();
 	/**
 	 * Engine The view rendering engine.
 	 *
@@ -104,13 +145,13 @@ define([
 
 		createLoader (){
 			var opts = obj.extend(true, {},
-					config.get('webLoader', {}),
-					this.config.get('webLoader', {})
+					config.get('loader', {}),
+					this.config.get('loader', {})
 				);
 
-			var baseUrl = obj.pull(opts, 'baseUrl', '/templates');
+			var baseUrl = obj.pull(opts, 'searchPaths', '/templates');
 			// return new nunjucks.WebLoader(baseUrl, opts);
-			return new WebLoader(baseUrl, opts);
+			return new FileSystemLoader(baseUrl, opts);
 		}
 	}
 
@@ -138,7 +179,7 @@ define([
 	}
 
 /*-End ViewCounter-*/
-	class DuplicateViewError extends KeyError
+	class DuplicateViewError extends exceptions.KeyError
 	{
 		constructor (name, message, fileName, lineNumber){
 			super('<'+name+'> '+(message || ""), fileName, lineNumber);
@@ -388,9 +429,10 @@ define([
 
 		_setParentView (view, extendContext, container_selector) {
 			this.parentView = view;
-			if(!this.container_selector)
+			if(container_selector || !this.container_selector){
 				container_selector = container_selector || '[child-view="'+this._name+'"]';
 				this.container_selector = view.selector(container_selector);
+			}
 		}
 
 		_baseEvents (){
@@ -400,7 +442,7 @@ define([
 					if(listener.isBound)
 						return;
 
-					jQuery(document).on(
+					self.container.on(
 						listener.events,
 						self.selector(listener.selector),
 						listener.callback);
@@ -413,7 +455,7 @@ define([
 
 	Emitter.mixin(View);
 
-	View.register = function(alias=null){
+	View.register = function(namespace=null, alias=null){
 		registry.register(this, alias);
 	}
 

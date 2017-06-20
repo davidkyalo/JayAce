@@ -1,6 +1,6 @@
 define([
 	'./utils',
-	'jQuery'
+	'jquery'
 ], function(utils, jQuery) {
 	'use strict';
 
@@ -72,7 +72,7 @@ define([
 
 		get (object, key, _default){
 			if(!object)
-				return utils.value(_default);
+				return _default; //utils.value(_default);
 
 			if(key === null || key === "")
 				return object;
@@ -84,7 +84,7 @@ define([
 			var target = object;
 			for (var i = 0; i < segments.length; i++) {
 				if(typeof(target) !== 'object' || !(segments[i] in target))
-					return utils.value(_default);
+					return _default; // utils.value(_default);
 
 				target = target[segments[i]];
 			}
@@ -115,6 +115,7 @@ define([
 		}
 
 		each (object, callback){
+			throw new BadMethodCallError('This method is not working as expected.');
 			var keys = this.keys(object);
 			for (var i = 0; i < keys.length; i++) {
 				if(callback(keys[i], object[keys[i]], object) === false)
@@ -131,7 +132,7 @@ define([
 				return jQuery.extend(target, object);
 		}
 
-		extend (){ return jQuery.extend.apply(null, arguments);	}
+		// extend (){ return jQuery.extend.apply(null, arguments);	}
 
 		keys (object){ return utils.keys(object); }
 
@@ -139,6 +140,10 @@ define([
 
 		splitKey (key){ return new String(key).split(this.notation); }
 	}
+
+	Obj.prototype.each = utils.each;
+	Obj.prototype.extend = jQuery.prototype.extend;
+
 	var obj = new Obj();
 	obj.Obj = Obj;
 	return obj;

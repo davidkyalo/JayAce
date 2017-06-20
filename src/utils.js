@@ -1,5 +1,5 @@
 define([
-	'jQuery',
+	'jquery',
 	'lodash',
 ], function(jQuery, lodash) {
 	'use strict';

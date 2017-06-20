@@ -4,11 +4,19 @@ define([
 ], function (utils, obj) {
 	'use strict';
 
+	var NOTHING = {};
+
 	class Bag
 	{
-		constructor(items){
-			if(items)
-				this.update(items);
+		constructor(items, missing){
+			if(items) this.update(items);
+
+			Object.defineProperty(this, '__missing__', {
+				enumerable: false,
+				configurable: false,
+				writable: false,
+				value: missing
+			});
 		}
 
 		has (key){
@@ -16,11 +24,22 @@ define([
 		}
 
 		get (key, _default){
-			return obj.get(this, key, _default);
+			var rv = obj.get(this, key, _default);
+			if(rv === undefined && this.__missing__){
+				rv = this.__missing__(this, key);
+				if(rv !== undefined)
+					this.set(key, rv);
+			}
+			return rv;
 		}
 
 		pull (key, _default){
-			return obj.pull(this, key, _default);
+			var value = this.get(key, NOTHING);
+			if(value === NOTHING)
+				return _default;
+
+			this.forget(key);
+			return value;
 		}
 
 		set (key, value, _default){
@@ -28,17 +47,24 @@ define([
 		}
 
 		default (key, _default=null){
-			var value = this.get(key);
-			if(value !== undefined)
-				return value;
-
-			value = utils.value(_default);
-			this.set(key, value);
+			var value = obj.get(this, key, NOTHING);
+			if(value === NOTHING){
+				value = _default;
+				this.set(key, value);
+			}
 			return value;
 		}
 
 		defaults (defaults){
 			obj.extend(true, this, defaults, this.copy(true));
+		}
+
+		forget (key){
+			return obj.forget(this, key);
+		}
+
+		remove (keys){
+			return this.forget(key);
 		}
 
 		update (/* , items... */){
@@ -76,8 +102,8 @@ define([
 		}
 	}
 
-	var bag = function(items={}){
-		return new Bag(items);
+	var bag = function(items={}, missing){
+		return new Bag(items, missing);
 	}
 
 	bag.Bag = Bag;
