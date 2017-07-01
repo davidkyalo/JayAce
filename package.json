@@ -3,5 +3,19 @@
   "main": "src/index.js",
   "version": "0.1.0",
   "description": "Dev tools",
-  "author": "David Kyalo"
+  "author": "David Kyalo",
+  "scripts": {
+    "postinstall": "install-app-deps"
+  },
+  "dependencies": {
+    "amd-loader": "0.0.8",
+    "jquery": "^3.2.1",
+    "lodash": "^4.17.4",
+    "nunjucks": "^3.0.1"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidkyalo/JayAce.git"
+  }
 }
